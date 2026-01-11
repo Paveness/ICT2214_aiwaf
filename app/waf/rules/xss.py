@@ -11,7 +11,7 @@ XSS_PATTERNS = [
     r"javascript\s*:",
 
     # inline event handlers (onerror=, onclick=, etc.)
-    r"on\w+\s*=",
+    r"(?:<|\s|\"|\')on\w+\s*=",
 
     # common HTML injection vectors
     r"<\s*(img|svg|iframe|object|embed)\b",

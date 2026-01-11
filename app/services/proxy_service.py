@@ -39,9 +39,12 @@ class ProxyService:
         if self.client is None:
             raise RuntimeError("ProxyService not started")
 
-        # ✅ EXACT request target as received (path + optional ?query) *before* decoding
-        raw_path_bytes = request.scope.get("raw_path", b"")
-        raw_target_wire = raw_path_bytes.decode("ascii", errors="backslashreplace")
+        ## ✅ EXACT request target as received: raw_path + raw query_string (no decoding/normalization)
+        raw_path = request.scope.get("raw_path", b"").decode("utf-8", errors="surrogateescape")
+        raw_query = request.scope.get("query_string", b"").decode("utf-8", errors="surrogateescape")
+
+        raw_target_wire = raw_path + (("?" + raw_query) if raw_query else "")
+
         # 🔐 LOOP PROTECTION: prevent origin == proxy host:port
         parsed = urlparse(settings.ORIGIN_BASE_URL)
         origin_host = parsed.hostname

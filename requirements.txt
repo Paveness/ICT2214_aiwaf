@@ -3,3 +3,6 @@ uvicorn
 httpx
 pydantic
 pydantic-settings
+scikit-learn
+pandas
+joblib

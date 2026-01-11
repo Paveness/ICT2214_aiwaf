@@ -9,6 +9,8 @@ from app.waf.engine import WAFEngine
 from app.waf.decisions import Action
 from app.settings import settings
 from app.proxy.normalization import NormalizedRequest, safe_unquote, normalize_path
+from app.waf.ai_features import extract_features
+from app.waf.ai_dataset import append_request_row as append_baseline
 
 router = APIRouter()
 waf = WAFEngine()
@@ -56,6 +58,50 @@ async def handle_all(request: Request, path: str):
 
     logger = request.app.state.logging_service
 
+    # ===== AI: baseline collection (always) + scoring (only if model ready) =====
+    ai = getattr(request.app.state, "ai_scorer", None)
+    ai_score = None
+    ai_flagged = False
+    ai_baseline_written = False
+
+    features = None
+    try:
+        features = extract_features(
+            method=req_norm.method,
+            raw_path=raw_path_wire,
+            decoded_path=req_norm.decoded_path,
+            normalized_path=req_norm.normalized_path,
+            raw_query=raw_query,
+            headers=req_norm.headers,
+            body_len=req_norm.body_len,
+        )
+        # Filter out noisy traffic from baseline (Socket.IO + static assets)
+        p = (req_norm.normalized_path or "").lower()
+
+        # IMPORTANT: baseline collection must NOT depend on ai.is_ready()
+        if decision.action == Action.ALLOW :
+            append_baseline(features)
+            ai_baseline_written = True
+
+    except Exception:
+        # Never allow feature extraction/logging to break proxying
+        features = None
+
+    # Only score if a trained model is loaded
+    if ai and hasattr(ai, "is_ready") and ai.is_ready() and features is not None:
+        try:
+            ai_score = ai.score(features)
+            AI_LOG_THRESHOLD = 0.90
+            ai_flagged = ai_score >= AI_LOG_THRESHOLD
+
+            if ai_flagged:
+                decision.reasons = list(decision.reasons or [])
+                decision.reasons.append(f"AI_ANOMALY:{ai_score:.3f}")
+        except Exception:
+            ai_score = None
+            ai_flagged = False
+
+
     # ===== BLOCK =====
     if effective_action == Action.BLOCK:
         latency_ms = int((time.perf_counter() - start) * 1000)
@@ -74,6 +120,12 @@ async def handle_all(request: Request, path: str):
                 "reasons": decision.reasons,
                 "status_code": decision.status_code,
             },
+            "ai": {
+                "model_ready": bool(ai and hasattr(ai, "is_ready") and ai.is_ready()),
+                "score": ai_score,
+                "flagged": ai_flagged,
+                "baseline_written": ai_baseline_written,
+            },
             "latency_ms": latency_ms,
         })
         return PlainTextResponse("Blocked by WAF", status_code=decision.status_code or 403)
@@ -91,6 +143,12 @@ async def handle_all(request: Request, path: str):
                 "action": decision.action,
                 "reasons": decision.reasons,
                 "status_code": 429,
+            },
+            "ai": {
+                "model_ready": bool(ai and hasattr(ai, "is_ready") and ai.is_ready()),
+                "score": ai_score,
+                "flagged": ai_flagged,
+                "baseline_written": ai_baseline_written,
             },
             "latency_ms": latency_ms,
         })
@@ -125,6 +183,12 @@ async def handle_all(request: Request, path: str):
             "upstream": {
                 "status_code": upstream_status,
                 "error": error,
+            },
+            "ai": {
+                "model_ready": bool(ai and hasattr(ai, "is_ready") and ai.is_ready()),
+                "score": ai_score,
+                "flagged": ai_flagged,
+                "baseline_written": ai_baseline_written,
             },
             "latency_ms": latency_ms,
         })
