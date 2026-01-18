@@ -19,14 +19,26 @@ GENERIC_RE = re.compile("|".join(GENERIC_INJECTION_PATTERNS), re.IGNORECASE)
 
 
 def generic_injection_checks(req) -> Decision | None:
-    query = req.query or ""
-    if not query:
+    query = (req.query or "")
+    body  = (req.body_text or "")
+
+    # Nothing to inspect
+    if not query and not body:
         return None
 
-    if GENERIC_RE.search(query):
+    # Query first
+    if query and GENERIC_RE.search(query):
         return Decision(
             Action.BLOCK,
             ["generic_injection:query"],
+            status_code=403,
+        )
+
+    # Body next
+    if body and GENERIC_RE.search(body):
+        return Decision(
+            Action.BLOCK,
+            ["generic_injection:body"],
             status_code=403,
         )
 

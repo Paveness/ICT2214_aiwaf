@@ -23,18 +23,31 @@ XSS_RE = re.compile("|".join(XSS_PATTERNS), re.IGNORECASE)
 
 def xss_checks(req) -> Decision | None:
     """
-    Detect reflected XSS attempts in query string.
+    Detect reflected XSS attempts in query string and request body.
     Conservative by design to avoid false positives.
     """
-    query = req.query or ""
-    if not query:
+    query = (req.query or "")
+    body  = (req.body_text or "")
+
+    # Nothing to inspect
+    if not query and not body:
         return None
 
-    if XSS_RE.search(query):
+    # Query-based XSS
+    if query and XSS_RE.search(query):
         return Decision(
             Action.BLOCK,
             ["xss:query"],
             status_code=403,
         )
 
+    # Body-based XSS (POST/PUT/PATCH)
+    if body and XSS_RE.search(body):
+        return Decision(
+            Action.BLOCK,
+            ["xss:body"],
+            status_code=403,
+        )
+
     return None
+

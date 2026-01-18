@@ -8,7 +8,7 @@ from fastapi.responses import PlainTextResponse
 from app.waf.engine import WAFEngine
 from app.waf.decisions import Action
 from app.settings import settings
-from app.proxy.normalization import NormalizedRequest, safe_unquote, normalize_path
+from app.proxy.normalization import NormalizedRequest, safe_unquote, normalize_path, normalize_body_text
 from app.waf.ai_features import extract_features
 from app.waf.ai_dataset import append_request_row as append_baseline
 
@@ -33,10 +33,40 @@ async def handle_all(request: Request, path: str):
     raw_query = request.scope.get("query_string", b"").decode("utf-8", errors="surrogateescape")
     decoded_query = unquote_plus(raw_query)
 
-    # ===== BODY SIZE ONLY (no body read yet) =====
+   # ===== BODY SIZE (header) =====
     content_length = request.headers.get("content-length")
     body_len = int(content_length) if content_length and content_length.isdigit() else 0
 
+    # ===== BODY (read once, cache full for forwarding, sample for features) =====
+    MAX_BODY_BYTES = 64 * 1024  # 64KB sample cap for feature extraction only
+
+    body_text = ""
+
+    if request.method in ("POST", "PUT", "PATCH"):
+        try:
+            body_full = await request.body()               # FULL body (bytes)
+            request.state.cached_body = body_full          # used by proxy.forward()
+
+            body_len = len(body_full)                      # authoritative size
+
+            # Only extract text from likely-text content types
+            content_type = request.headers.get("content-type", "").lower()
+            if content_type.startswith((
+                "application/json",
+                "application/x-www-form-urlencoded",
+                "text/",
+                "application/xml",
+            )):
+                # body_sample = body_full[:MAX_BODY_BYTES]   # sample only
+                body_text = body_full.decode("utf-8", errors="ignore")
+                body_text = normalize_body_text(body_text)
+            else:
+                body_text = ""  # binary / unknown → skip text inspection
+
+        except Exception:
+            request.state.cached_body = b""
+            body_text = ""
+    
     # ===== BUILD NORMALIZED REQUEST =====
     req_norm = NormalizedRequest(
         method=request.method,
@@ -47,6 +77,7 @@ async def handle_all(request: Request, path: str):
         headers=dict(request.headers),
         client_ip=request.client.host if request.client else None,
         body_len=body_len,
+        body_text=body_text
     )
 
     # ===== WAF DECISION =====
@@ -74,6 +105,7 @@ async def handle_all(request: Request, path: str):
             raw_query=raw_query,
             headers=req_norm.headers,
             body_len=req_norm.body_len,
+            body_text=body_text,
         )
         # Filter out noisy traffic from baseline (Socket.IO + static assets)
         p = (req_norm.normalized_path or "").lower()

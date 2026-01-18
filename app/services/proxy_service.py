@@ -39,55 +39,41 @@ class ProxyService:
         if self.client is None:
             raise RuntimeError("ProxyService not started")
 
-        ## ✅ EXACT request target as received: raw_path + raw query_string (no decoding/normalization)
         raw_path = request.scope.get("raw_path", b"").decode("utf-8", errors="surrogateescape")
         raw_query = request.scope.get("query_string", b"").decode("utf-8", errors="surrogateescape")
-
         raw_target_wire = raw_path + (("?" + raw_query) if raw_query else "")
-
-        # 🔐 LOOP PROTECTION: prevent origin == proxy host:port
-        parsed = urlparse(settings.ORIGIN_BASE_URL)
-        origin_host = parsed.hostname
-        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
-
-        incoming_host = request.headers.get("host", "")
-        if ":" in incoming_host:
-            in_host, in_port_str = incoming_host.split(":", 1)
-            try:
-                in_port = int(in_port_str)
-            except ValueError:
-                in_port = 80
-        else:
-            in_host, in_port = incoming_host, 80
-
-        if in_host == origin_host and in_port == origin_port:
-            return Response(
-                content="Proxy loop detected: ORIGIN_BASE_URL points to the proxy itself.",
-                status_code=500,
-                media_type="text/plain",
-            )
-
-        upstream_url = settings.ORIGIN_BASE_URL.rstrip("/") + raw_target_wire
 
         # Copy headers but remove hop-by-hop headers
         headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS}
 
-        # Stream request body to upstream
-        async def body_stream():
-            async for chunk in request.stream():
-                yield chunk
+        # ✅ IMPORTANT: remove these so httpx sets them correctly
+        headers.pop("content-length", None)
+        headers.pop("transfer-encoding", None)
+        
+        # If body was already read by WAF/controller, forward that exact bytes
+        cached = getattr(request.state, "cached_body", None)
+        if cached is not None:
+            content = cached
+        else:
+            # Otherwise we can stream it (no prior consumption)
+            async def body_stream():
+                async for chunk in request.stream():
+                    yield chunk
+            content = body_stream()
+
+        upstream_url = settings.ORIGIN_BASE_URL.rstrip("/") + raw_target_wire
 
         async with self.client.stream(
             method=request.method,
             url=upstream_url,
             headers=headers,
-            content=body_stream(),
+            content=content,   # <-- either bytes or async generator
         ) as upstream_resp:
             resp_headers = {k: v for k, v in upstream_resp.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS}
-            content = await upstream_resp.aread()
+            resp_content = await upstream_resp.aread()
 
             return Response(
-                content=content,
+                content=resp_content,
                 status_code=upstream_resp.status_code,
                 headers=resp_headers,
                 media_type=upstream_resp.headers.get("content-type"),

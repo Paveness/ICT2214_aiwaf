@@ -13,6 +13,7 @@ def extract_features(
     raw_query: str,
     headers: dict,
     body_len: int,
+    body_text: str,
 ) -> dict:
     # NOTE: avoid logging raw secrets; features only.
     q = raw_query or ""

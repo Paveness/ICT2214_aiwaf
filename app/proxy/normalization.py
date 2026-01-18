@@ -1,8 +1,35 @@
 from __future__ import annotations
+import html
+import re
 from dataclasses import dataclass
 from typing import Dict, Optional, List
 from urllib.parse import unquote_plus
 
+_HEX_RE = re.compile(r"%[0-9a-fA-F]{2}")
+
+def normalize_body_text(value: str, *, max_rounds: int = 2) -> str:
+    """
+    Normalize body text for detection (NOT for forwarding):
+    - URL-decode a limited number of times (safe_unquote)
+    - HTML entity decode
+    - keep it deterministic and safe (no parsing/eval)
+    """
+    if not value:
+        return ""
+
+    out = value
+
+    # Only attempt URL decoding if it likely contains percent-encoding or pluses
+    if "%" in out or "+" in out or _HEX_RE.search(out):
+        out = safe_unquote(out, max_rounds=max_rounds)
+
+    # Decode HTML entities (&lt;script&gt;)
+    try:
+        out = html.unescape(out)
+    except Exception:
+        pass
+
+    return out
 
 def safe_unquote(value: str, max_rounds: int = 2) -> str:
     """
@@ -55,3 +82,4 @@ class NormalizedRequest:
     headers: Dict[str, str]
     client_ip: Optional[str]
     body_len: int
+    body_text: str
