@@ -1,8 +1,6 @@
 ./venv
 /.venv
 /app/__pycache__
-/logs/access.jsonl
-/data/ai_requests.jsonl
 __pycache__/
 *.pyc
 *access.jsonl
