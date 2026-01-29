@@ -29,20 +29,16 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 w-full flex flex-col gap-1">
+      <nav className="flex-1 w-full flex flex-col gap-1 overflow-y-auto min-h-0 py-4 scroll-smooth scrollbar-hide">
         <SidebarItem to="/" icon={LayoutDashboard} label="Overview" />
         <SidebarItem to="/ddos" icon={ShieldAlert} label="DDoS" />
         <SidebarItem to="/events" icon={FileText} label="Events" />
         <SidebarItem to="/traffic" icon={Activity} label="Traffic" />
-      </nav>
-
-      {/* Bottom Actions */}
-      <div className="mt-auto w-full flex flex-col gap-1">
+        <SidebarItem to="/traffic" icon={Activity} label="Traffic" />
         <SidebarItem to="/support" icon={LifeBuoy} label="Help" />
-        <button className="p-4 text-slate-500 hover:text-white transition-colors">
-          <Settings size={20} />
-        </button>
-      </div>
+        <SidebarItem to="/settings" icon={Settings} label="Settings" />
+      </nav>
+        
     </aside>
   );
 }

@@ -8,7 +8,9 @@ import {
 } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Overview from "./pages/Overview";
-import TrafficAnalysis from "./pages/TrafficAnalysis";
+//import TrafficAnalysis from "./pages/TrafficAnalysis";
+import DDoSDashboard from "./pages/DDoSDashboard";
+import EventsLog from "./pages/EventsLog";
 
 // Placeholder components for pages we haven't built yet
 const Placeholder = ({ title }) => (
@@ -26,10 +28,10 @@ function App() {
           <Route path="/" element={<Overview />} />
 
           {/* Traffic Analysis Page */}
-          <Route path="/traffic" element={<TrafficAnalysis />} />
+          <Route path="/traffic" element={<Placeholder title="Event Logs" />} />
 
           {/* Placeholders for other links */}
-          <Route path="/ddos" element={<Placeholder title="DDoS Monitor" />} />
+          <Route path="/ddos" element={<DDoSDashboard />} />
           <Route path="/events" element={<Placeholder title="Event Logs" />} />
           <Route
             path="/support"
