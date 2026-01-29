@@ -1,10 +1,7 @@
 ./venv
 /.venv
 /app/__pycache__
-<<<<<<< Updated upstream
 /logs/access.jsonl
 /data/ai_requests.jsonl
-=======
 __pycache__/
 *.pyc
->>>>>>> Stashed changes
