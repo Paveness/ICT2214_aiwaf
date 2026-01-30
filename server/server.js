@@ -89,6 +89,72 @@ app.post('/api/login', (req, res) => {
   });
 });
 
+// 4. GET LOGS (With Pagination & Search)
+app.get('/api/logs', (req, res) => {
+  const { search, attack_type, limit = 20, page = 1 } = req.query; // Default limit 20
+  
+  const offset = (page - 1) * limit;
+  const params = [];
+  let whereClause = "WHERE 1=1";
+
+  // Build Filter Logic
+  if (search) {
+    whereClause += " AND (source_ip LIKE ? OR request_path LIKE ?)";
+    params.push(`%${search}%`, `%${search}%`);
+  }
+  
+  if (attack_type && attack_type !== 'All') {
+    whereClause += " AND attack_type = ?";
+    params.push(attack_type);
+  }
+
+  // Query 1: Get the Total Count (for pagination)
+  const countSql = `SELECT COUNT(*) as total FROM event_logs ${whereClause}`;
+  
+  db.query(countSql, params, (err, countResult) => {
+    if (err) return res.status(500).json({ error: "Database error" });
+    
+    const totalLogs = countResult[0].total;
+    const totalPages = Math.ceil(totalLogs / limit);
+
+    // Query 2: Get the Actual Data (slicing it)
+    const dataSql = `SELECT * FROM event_logs ${whereClause} ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
+    // Add limit and offset to params (must be integers)
+    const dataParams = [...params, parseInt(limit), parseInt(offset)];
+
+    db.query(dataSql, dataParams, (err, results) => {
+      if (err) return res.status(500).json({ error: "Database error" });
+      
+      // Send both data and pagination info
+      res.json({
+        logs: results,
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: totalPages,
+          total_logs: totalLogs
+        }
+      });
+    });
+  });
+});
+
+// 5. GET FILTER OPTIONS (Dynamic Attack Types)
+app.get('/api/filters', (req, res) => {
+  // 'DISTINCT' ensures we don't get duplicates (e.g. 100 'XSS' rows -> just 1 'XSS' result)
+  const sql = "SELECT DISTINCT attack_type FROM event_logs ORDER BY attack_type ASC";
+  
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Database error" });
+    }
+    // Transform the result from [{attack_type: 'XSS'}, {attack_type: 'SQLi'}] 
+    // to a simple list: ['XSS', 'SQLi']
+    const types = results.map(row => row.attack_type);
+    res.json(types);
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
