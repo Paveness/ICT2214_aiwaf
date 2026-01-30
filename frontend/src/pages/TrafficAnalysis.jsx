@@ -2,7 +2,7 @@
 // src/pages/TrafficAnalysis.jsx
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, Globe, Server, Zap, Activity } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Globe, Server, Zap } from 'lucide-react';
 
 // --- MOCK DATA ---
 const bandwidthData = Array.from({ length: 24 }, (_, i) => ({

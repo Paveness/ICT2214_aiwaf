@@ -1,130 +1,44 @@
+// Left navigation bar to access different sections of the application
 // src/components/common/Sidebar.jsx
-import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Activity, 
-  ShieldAlert, 
-  FileText, 
-  Settings, 
-  HelpCircle,
-  Hexagon 
-} from "lucide-react";
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { LayoutDashboard, ShieldAlert, Activity, FileText, LifeBuoy, Settings } from 'lucide-react';
 
-const Sidebar = () => {
-  const location = useLocation();
-  const [isExpanded, setIsExpanded] = useState(false); // Default to collapsed
+const SidebarItem = ({ to, icon: Icon, label }) => (
+  <NavLink
+    to={to}
+    className={({ isActive }) =>
+      `flex flex-col items-center justify-center py-4 w-full transition-all duration-200 border-l-4 ${
+        isActive
+          ? 'bg-slate-800 border-indigo-500 text-white shadow-[inset_0px_0px_20px_rgba(0,0,0,0.2)]'
+          : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+      }`
+    }
+  >
+    <Icon size={24} strokeWidth={1.5} />
+    <span className="text-[10px] mt-1.5 font-medium tracking-wide uppercase">{label}</span>
+  </NavLink>
+);
 
-  // Define navigation items
-  const navItems = [
-    { name: "Overview", path: "/", icon: LayoutDashboard },
-    { name: "Traffic Analysis", path: "/traffic", icon: Activity },
-    { name: "DDoS Mitigation", path: "/ddos", icon: ShieldAlert },
-    { name: "Events Log", path: "/events", icon: FileText },
-  ];
-
-  const bottomItems = [
-    { name: "Settings", path: "/settings", icon: Settings },
-    { name: "Support", path: "/support", icon: HelpCircle },
-  ];
-
-  // Helper to determine active style
-  const isActive = (path) => {
-    return location.pathname === path 
-      ? "bg-blue-600 text-white shadow-md" 
-      : "text-gray-400 hover:bg-gray-800 hover:text-white";
-  };
-
+export default function Sidebar() {
   return (
-    <div 
-      className={`bg-gray-900 h-full flex flex-col border-r border-gray-800 transition-all duration-300 ease-in-out z-20 ${
-        isExpanded ? "w-64" : "w-20"
-      }`}
-      onMouseEnter={() => setIsExpanded(true)}
-      onMouseLeave={() => setIsExpanded(false)}
-    >
-      
-      {/* 1. Logo / Branding */}
-      <div className="h-16 flex items-center px-4 border-b border-gray-800 whitespace-nowrap overflow-hidden">
-        <div className="bg-blue-600 p-2 rounded-lg min-w-[36px] flex items-center justify-center">
-          <Hexagon fill="white" className="text-white" size={20} />
-        </div>
-        <span className={`text-white font-bold text-lg tracking-wide ml-3 transition-opacity duration-200 ${
-          isExpanded ? "opacity-100" : "opacity-0"
-        }`}>
-          Neuro-WAF<span className="text-blue-500">.AI</span>
-        </span>
+    <aside className="w-20 bg-slate-900 text-white flex flex-col items-center py-6 shadow-xl z-20">
+      {/* Logo */}
+      <div className="mb-8 w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30 font-bold text-lg tracking-tighter">
+        NW
       </div>
 
-      {/* 2. Main Navigation */}
-      <nav className="flex-1 px-3 py-6 space-y-2">
-        <p className={`px-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 transition-opacity duration-200 whitespace-nowrap ${
-           isExpanded ? "opacity-100" : "opacity-0 h-0 overflow-hidden"
-        }`}>
-          Monitoring
-        </p>
-        
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`flex items-center px-3 py-3 rounded-xl transition-all duration-200 font-medium text-sm whitespace-nowrap ${isActive(item.path)}`}
-          >
-            {/* Icon Wrapper to keep it centered when collapsed */}
-            <div className="min-w-[24px] flex items-center justify-center">
-              <item.icon size={20} />
-            </div>
-            
-            <span className={`ml-3 transition-all duration-200 overflow-hidden ${
-              isExpanded ? "opacity-100 w-auto" : "opacity-0 w-0"
-            }`}>
-              {item.name}
-            </span>
-          </Link>
-        ))}
+      {/* Navigation */}
+      <nav className="flex-1 w-full flex flex-col gap-1 overflow-y-auto min-h-0 py-4 scroll-smooth scrollbar-hide">
+        <SidebarItem to="/" icon={LayoutDashboard} label="Overview" />
+        <SidebarItem to="/ddos" icon={ShieldAlert} label="DDoS" />
+        <SidebarItem to="/events" icon={FileText} label="Events" />
+        <SidebarItem to="/traffic" icon={Activity} label="Traffic" />
+        <SidebarItem to="/traffic" icon={Activity} label="Traffic" />
+        <SidebarItem to="/support" icon={LifeBuoy} label="Help" />
+        <SidebarItem to="/settings" icon={Settings} label="Settings" />
       </nav>
-
-      {/* 3. Bottom/System Navigation */}
-      <div className="px-3 py-6 border-t border-gray-800 space-y-2">
-        <p className={`px-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 transition-opacity duration-200 whitespace-nowrap ${
-           isExpanded ? "opacity-100" : "opacity-0 h-0 overflow-hidden"
-        }`}>
-          System
-        </p>
-
-        {bottomItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={`flex items-center px-3 py-3 rounded-xl transition-all duration-200 font-medium text-sm whitespace-nowrap ${isActive(item.path)}`}
-          >
-            <div className="min-w-[24px] flex items-center justify-center">
-              <item.icon size={20} />
-            </div>
-            <span className={`ml-3 transition-all duration-200 overflow-hidden ${
-              isExpanded ? "opacity-100 w-auto" : "opacity-0 w-0"
-            }`}>
-              {item.name}
-            </span>
-          </Link>
-        ))}
-      </div>
-
-      {/* 4. User Profile Snippet */}
-      <div className="p-4 border-t border-gray-800 whitespace-nowrap overflow-hidden">
-        <div className="flex items-center gap-3">
-          <div className="min-w-[32px] h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 border border-gray-700"></div>
-          <div className={`transition-opacity duration-200 ${
-            isExpanded ? "opacity-100" : "opacity-0"
-          }`}>
-            <p className="text-sm font-bold text-white">Admin User</p>
-            <p className="text-xs text-gray-500">SOC Analyst</p>
-          </div>
-        </div>
-      </div>
-      
-    </div>
+        
+    </aside>
   );
-};
-
-export default Sidebar;
+}
