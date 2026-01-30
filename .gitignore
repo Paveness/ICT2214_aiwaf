@@ -1,3 +1,7 @@
 ./venv
 /.venv
 /app/__pycache__
+__pycache__/
+*.pyc
+*access.jsonl
+*ai_requests.jsonl

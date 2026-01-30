@@ -6,5 +6,11 @@ pydantic-settings
 scikit-learn
 pandas
 joblib
+scrapy
+
+# Frontend dependencies
+react
+axios
+tailwindcss
 beautifulsoup4 
 requests

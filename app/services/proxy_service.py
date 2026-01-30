@@ -49,6 +49,7 @@ class ProxyService:
         # ✅ IMPORTANT: remove these so httpx sets them correctly
         headers.pop("content-length", None)
         headers.pop("transfer-encoding", None)
+        headers.pop("accept-encoding", None)
         
         # If body was already read by WAF/controller, forward that exact bytes
         cached = getattr(request.state, "cached_body", None)
@@ -71,6 +72,13 @@ class ProxyService:
         ) as upstream_resp:
             resp_headers = {k: v for k, v in upstream_resp.headers.items() if k.lower() not in HOP_BY_HOP_HEADERS}
             resp_content = await upstream_resp.aread()
+
+            # ✅ CRITICAL: don't forward these; Starlette will set correct Content-Length
+            resp_headers.pop("content-length", None)
+            resp_headers.pop("transfer-encoding", None)
+
+            # ✅ CRITICAL: httpx may have decompressed the body; don't lie to the client
+            resp_headers.pop("content-encoding", None)
 
             return Response(
                 content=resp_content,
