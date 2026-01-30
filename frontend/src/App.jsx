@@ -8,16 +8,11 @@ import {
 } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Overview from "./pages/Overview";
-//import TrafficAnalysis from "./pages/TrafficAnalysis";
+import TrafficAnalysis from "./pages/TrafficAnalysis";
 import DDoSDashboard from "./pages/DDoSDashboard";
 import EventsLog from "./pages/EventsLog";
-
-// Placeholder components for pages we haven't built yet
-const Placeholder = ({ title }) => (
-  <div className="p-10 text-gray-500 text-center border-2 border-dashed border-gray-300 rounded-lg h-96 flex items-center justify-center">
-    <h2 className="text-2xl font-semibold">TEMP</h2>
-  </div>
-);
+import HelpPage from "./pages/HelpPage";
+import SettingsPage from "./pages/SettingsPage";
 
 function App() {
   return (
@@ -28,15 +23,15 @@ function App() {
           <Route path="/" element={<Overview />} />
 
           {/* Traffic Analysis Page */}
-          <Route path="/traffic" element={<Placeholder title="Event Logs" />} />
+          <Route path="/traffic" element={<TrafficAnalysis />} />
 
-          {/* Placeholders for other links */}
+          {/* Security Pages */}
           <Route path="/ddos" element={<DDoSDashboard />} />
-          <Route path="/events" element={<Placeholder title="Event Logs" />} />
-          <Route
-            path="/support"
-            element={<Placeholder title="Support Center" />}
-          />
+          <Route path="/events" element={<EventsLog />} />
+
+          {/* Settings & Support */}
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/support" element={<HelpPage />} />
 
           {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/" replace />} />
