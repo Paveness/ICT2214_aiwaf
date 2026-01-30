@@ -1,47 +1,73 @@
 // src/App.jsx
-import React from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
+import LoginPage from "./pages/LoginPage";
+
+// Pages
 import Overview from "./pages/Overview";
-//import TrafficAnalysis from "./pages/TrafficAnalysis";
+import TrafficAnalysis from "./pages/TrafficAnalysis";
 import DDoSDashboard from "./pages/DDoSDashboard";
 import EventsLog from "./pages/EventsLog";
-
-// Placeholder components for pages we haven't built yet
-const Placeholder = ({ title }) => (
-  <div className="p-10 text-gray-500 text-center border-2 border-dashed border-gray-300 rounded-lg h-96 flex items-center justify-center">
-    <h2 className="text-2xl font-semibold">TEMP</h2>
-  </div>
-);
+import HelpPage from "./pages/HelpPage";
+import SettingsPage from "./pages/SettingsPage";
 
 function App() {
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Optional: Check if user was already logged in (persists on refresh)
+  useEffect(() => {
+    const loggedInUser = localStorage.getItem("user");
+    if (loggedInUser) {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = (userData) => {
+    setIsAuthenticated(true);
+    localStorage.setItem("user", JSON.stringify(userData)); // Save login state
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem("user");
+  };
+
   return (
     <Router>
-      <MainLayout>
-        <Routes>
-          {/* Dashboard Home */}
-          <Route path="/" element={<Overview />} />
+      <Routes>
+        {/* PUBLIC ROUTE: Login Page */}
+        <Route 
+          path="/login" 
+          element={
+            !isAuthenticated ? (
+              <LoginPage onLogin={handleLogin} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        />
 
-          {/* Traffic Analysis Page */}
-          <Route path="/traffic" element={<Placeholder title="Event Logs" />} />
-
-          {/* Placeholders for other links */}
-          <Route path="/ddos" element={<DDoSDashboard />} />
-          <Route path="/events" element={<Placeholder title="Event Logs" />} />
-          <Route
-            path="/support"
-            element={<Placeholder title="Support Center" />}
-          />
-
-          {/* Catch-all redirect */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </MainLayout>
+        {/* PROTECTED ROUTES */}
+        {isAuthenticated ? (
+          <>
+            {/* We wrap each page individually with MainLayout */}
+            <Route path="/" element={<MainLayout><Overview /></MainLayout>} />
+            <Route path="/traffic" element={<MainLayout><TrafficAnalysis /></MainLayout>} />
+            <Route path="/ddos" element={<MainLayout><DDoSDashboard /></MainLayout>} />
+            <Route path="/events" element={<MainLayout><EventsLog /></MainLayout>} />
+            <Route path="/settings" element={<MainLayout><SettingsPage /></MainLayout>} />
+            <Route path="/support" element={<MainLayout><HelpPage /></MainLayout>} />
+            
+            {/* Catch-all: Redirect unknown URLs to Dashboard */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        ) : (
+          /* If NOT logged in, redirect everything to Login */
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        )}
+      </Routes>
     </Router>
   );
 }
