@@ -90,10 +90,10 @@ async def handle_all(request: Request, path: str):
     logger = request.app.state.logging_service
 
     # ===== AI: baseline collection (always) + scoring (only if model ready) =====
-    ai = getattr(request.app.state, "ai_scorer", None)
-    ai_score = None
-    ai_flagged = False
-    ai_baseline_written = False
+    anomaly_ai = getattr(request.app.state, "anomaly_ai_scorer", None)
+    anomaly_score = None
+    anomaly_flagged = False
+    anomaly_baseline_written = False
 
     features = None
     try:
@@ -110,29 +110,35 @@ async def handle_all(request: Request, path: str):
         # Filter out noisy traffic from baseline (Socket.IO + static assets)
         p = (req_norm.normalized_path or "").lower()
 
-        # IMPORTANT: baseline collection must NOT depend on ai.is_ready()
-        if decision.action == Action.ALLOW :
-            append_baseline(features)
-            ai_baseline_written = True
+        # # IMPORTANT: baseline collection must NOT depend on ai.is_ready()
+        # if decision.action == Action.ALLOW :
+        #     append_baseline(features)
+        #     anomaly_baseline_written = True
 
     except Exception:
         # Never allow feature extraction/logging to break proxying
         features = None
 
     # Only score if a trained model is loaded
-    if ai and hasattr(ai, "is_ready") and ai.is_ready() and features is not None:
+    if anomaly_ai and hasattr(anomaly_ai, "is_ready") and anomaly_ai.is_ready() and features is not None:
         try:
-            ai_score = ai.score(features)
+            anomaly_score = anomaly_ai.score(features)
             AI_LOG_THRESHOLD = 0.90
-            ai_flagged = ai_score >= AI_LOG_THRESHOLD
+            anomaly_flagged = anomaly_score >= AI_LOG_THRESHOLD
 
-            if ai_flagged:
+            if anomaly_flagged:
                 decision.reasons = list(decision.reasons or [])
-                decision.reasons.append(f"AI_ANOMALY:{ai_score:.3f}")
-        except Exception:
-            ai_score = None
-            ai_flagged = False
+                decision.reasons.append(f"AI_ANOMALY:{anomaly_score:.3f}")
 
+            print(f"{raw_path_wire}\nFlagged: {anomaly_flagged}\nScore: {anomaly_score}\n")
+        except Exception:
+            anomaly_score = None
+            anomaly_flagged = False
+
+    # IMPORTANT: baseline collection must NOT depend on ai.is_ready()
+    if (decision.action == Action.ALLOW) and not anomaly_flagged :
+        append_baseline(features)
+        anomaly_baseline_written = True
 
     # ===== BLOCK =====
     if effective_action == Action.BLOCK:
@@ -153,10 +159,10 @@ async def handle_all(request: Request, path: str):
                 "status_code": decision.status_code,
             },
             "ai": {
-                "model_ready": bool(ai and hasattr(ai, "is_ready") and ai.is_ready()),
-                "score": ai_score,
-                "flagged": ai_flagged,
-                "baseline_written": ai_baseline_written,
+                "model_ready": bool(anomaly_ai and hasattr(anomaly_ai, "is_ready") and anomaly_ai.is_ready()),
+                "score": anomaly_score,
+                "flagged": anomaly_flagged,
+                "baseline_written": anomaly_baseline_written,
             },
             "latency_ms": latency_ms,
         })
@@ -177,10 +183,10 @@ async def handle_all(request: Request, path: str):
                 "status_code": 429,
             },
             "ai": {
-                "model_ready": bool(ai and hasattr(ai, "is_ready") and ai.is_ready()),
-                "score": ai_score,
-                "flagged": ai_flagged,
-                "baseline_written": ai_baseline_written,
+                "model_ready": bool(anomaly_ai and hasattr(ai, "is_ready") and anomaly_ai.is_ready()),
+                "score": anomaly_score,
+                "flagged": anomaly_flagged,
+                "baseline_written": anomaly_baseline_written,
             },
             "latency_ms": latency_ms,
         })
@@ -217,10 +223,10 @@ async def handle_all(request: Request, path: str):
                 "error": error,
             },
             "ai": {
-                "model_ready": bool(ai and hasattr(ai, "is_ready") and ai.is_ready()),
-                "score": ai_score,
-                "flagged": ai_flagged,
-                "baseline_written": ai_baseline_written,
+                "model_ready": bool(anomaly_ai and hasattr(anomaly_ai, "is_ready") and anomaly_ai.is_ready()),
+                "score": anomaly_score,
+                "flagged": anomaly_flagged,
+                "baseline_written": anomaly_baseline_written,
             },
             "latency_ms": latency_ms,
         })
