@@ -1,0 +1,1 @@
+// Sliding out card for All event details
