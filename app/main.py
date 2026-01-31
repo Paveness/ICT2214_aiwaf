@@ -11,9 +11,9 @@ app = FastAPI(title="AIWAF Proxy (V1)")
 
 @app.on_event("startup")
 async def on_startup():
-    ai = AIAnomalyScorer()
-    ai.load()
-    app.state.ai_scorer = ai
+    anomaly_ai = AIAnomalyScorer()
+    anomaly_ai.load()
+    app.state.anomaly_ai_scorer = anomaly_ai
     await proxy_service.startup()
 
 @app.on_event("shutdown")
