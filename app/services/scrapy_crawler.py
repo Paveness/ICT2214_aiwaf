@@ -1,109 +1,88 @@
 import scrapy
 from scrapy.crawler import CrawlerProcess
 from scrapy.http import FormRequest
-from urllib.parse import urljoin, urlparse
+import random
 
 # CONFIGURATION
 # --------------------------------------------------
+# WAF Address (This proxies traffic to your Shop on Port 5000)
 WAF_BASE = 'http://127.0.0.1:8080' 
 
-class NeuroSpider(scrapy.Spider):
-    name = 'neuro_waf_spider'
+class ShopSpider(scrapy.Spider):
+    name = 'shop_spider'
     allowed_domains = ['127.0.0.1', 'localhost']
+    
+    # Start at the Homepage
+    start_urls = [f"{WAF_BASE}/"]
 
     def start_requests(self):
-        print("🕷️ Starting Scrapy Spider...")
-        # Start at login
-        start_url = f"{WAF_BASE}/DVWA/login.php"
-        yield scrapy.Request(
-            url=start_url, 
-            callback=self.parse_login_page,
-            cookies={'security': 'low'},
-            meta={'dont_merge_cookies': False} 
-        )
-
-    def parse_login_page(self, response):
-        print(f"[*] Fetching Token from {response.url}")
-        token = response.css("input[name='user_token']::attr(value)").get()
-        
-        if not token:
-            print("[-] No Token found! (Is DVWA running?)")
-            return
-
-        print(f"[*] Found Token: {token}. Attempting Login...")
-        
-        return FormRequest.from_response(
-            response,
-            formdata={
-                'username': 'admin', 
-                'password': 'password', 
-                'Login': 'Login', 
-                'user_token': token
-            },
-            headers={
-                'Referer': response.url,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' 
-            },
-            cookies={'security': 'low'}, 
-            callback=self.after_login,
-            dont_filter=True 
-        )
-
-    def after_login(self, response):
-        if "login.php" in response.url:
-             print("❌ Login FAILED. Database reset likely needed.")
-             return
-
-        if "Welcome to Damn Vulnerable Web App" in response.text:
-            print("✅ Login Success! Starting Crawl...")
-            yield scrapy.Request(
-                url=f"{WAF_BASE}/DVWA/", 
-                callback=self.parse,
-                cookies={'security': 'low'}
-            )
-        else:
-            print(f"⚠️ Unknown State. Landed on {response.url}")
+        print("🕷️ Starting NeuroShop Crawler...")
+        for url in self.start_urls:
+            yield scrapy.Request(url=url, callback=self.parse, cookies={'security': 'low'})
 
     def parse(self, response):
-        # 1. SAFETY CHECK: Ignore PDFs, Images, Zips, etc.
-        content_type = response.headers.get(b'Content-Type', b'').decode('utf-8').lower()
-        if 'text/html' not in content_type:
-            print(f"⏩ Skipping non-HTML file: {response.url} ({content_type})")
-            return
-
-        # 2. LOGGING CURRENT URL
         print(f"🔍 Crawling: {response.url}")
 
-        # 3. Scan page for links
+        # 1. INTERACT WITH FORMS
+        # The crawler finds forms and fills them with SAFE data
+        for form in response.css('form'):
+            action = form.attrib.get('action', '')
+            
+            # Scenario A: Search Bar (GET Request)
+            if "/search" in action or "q" in response.text:
+                benign_queries = ["Python", "Hacker", "Security", "AI", "Book"]
+                query = random.choice(benign_queries)
+                print(f"   [+] Simulating User Search: '{query}'")
+                
+                # Construct the search URL manually since it's a GET form
+                yield scrapy.Request(
+                    url=f"{WAF_BASE}/search?q={query}",
+                    callback=self.parse
+                )
+
+            # Scenario B: Login Form (POST Request)
+            elif "/login" in response.url:
+                print("   [+] Simulating User Login...")
+                yield FormRequest.from_response(
+                    response,
+                    formdata={
+                        'username': 'john',  # Valid user
+                        'password': 'securepass'
+                    },
+                    callback=self.after_login
+                )
+
+        # 2. FOLLOW LINKS
+        # It clicks on products, categories, nav links, etc.
         for href in response.css('a::attr(href)').getall():
-            if href.startswith("http"):
+            if href.startswith("/"):
+                full_url = f"{WAF_BASE}{href}"
+            elif href.startswith("http"):
                 full_url = href
             else:
-                full_url = response.urljoin(href)
-
-            # Filter: Only follow links inside DVWA
-            if "DVWA" not in full_url:
                 continue
 
-            # Filter: Avoid Logout/Setup
-            if any(x in full_url for x in ["logout.php", "setup.php", "security.php"]):
-                continue
+            # Ensure we stay on the WAF
+            if WAF_BASE in full_url:
+                yield scrapy.Request(full_url, callback=self.parse)
 
-            # Rewrite Logic: Ensure we stay on WAF port 8080
-            if "8080" in full_url:
-                yield scrapy.Request(full_url, callback=self.parse, cookies={'security': 'low'})
-            elif "127.0.0.1/DVWA" in full_url:
-                new_url = full_url.replace("127.0.0.1/DVWA", "127.0.0.1:8080/DVWA")
-                yield scrapy.Request(new_url, callback=self.parse, cookies={'security': 'low'})
+    def after_login(self, response):
+        if "Logout" in response.text or "Welcome" in response.text:
+            print("✅ Login Success! Continuing crawl as authenticated user...")
+        else:
+            print("⚠️ Login finished (Check logs if successful).")
+        
+        # Continue crawling from the dashboard/home
+        yield scrapy.Request(url=f"{WAF_BASE}/", callback=self.parse)
 
 if __name__ == "__main__":
     process = CrawlerProcess(settings={
         'LOG_LEVEL': 'INFO',
         'ROBOTSTXT_OBEY': False,
         'CONCURRENT_REQUESTS': 2,
-        'DOWNLOAD_DELAY': 0.2,
+        'DOWNLOAD_DELAY': 0.5, # Realistic user speed
         'COOKIES_ENABLED': True,
     })
     
-    process.crawl(NeuroSpider)
+    process.crawl(ShopSpider)
     process.start()
