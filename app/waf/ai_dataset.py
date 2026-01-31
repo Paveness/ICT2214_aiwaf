@@ -1,7 +1,7 @@
 import json, time
 from pathlib import Path
 
-DATA_DIR = Path("data")
+DATA_DIR = Path("app/ai_models/data")
 DATA_DIR.mkdir(exist_ok=True)
 AI_FILE = DATA_DIR / "ai_requests.jsonl"
 

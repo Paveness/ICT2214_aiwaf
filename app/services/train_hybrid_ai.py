@@ -12,9 +12,9 @@ from sklearn.preprocessing import OneHotEncoder
 from tensorflow import keras
 from tensorflow.keras import layers
 
-DATA = Path("data/ai_requests.jsonl")
-BUNDLE_OUT = Path("data/ai_model.joblib")     # keep same name so your app doesn't change
-AE_OUT = Path("data/ae_model.keras")          # new
+DATA = Path("app/ai_models/data/ai_requests.jsonl")
+BUNDLE_OUT = Path("app/ai_models/ai_model.joblib")     # keep same name so your app doesn't change
+AE_OUT = Path("app/ai_models/ae_model.keras")          # new
 
 def load_rows():
     rows = []

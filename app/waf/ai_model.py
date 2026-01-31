@@ -5,7 +5,7 @@ import pandas as pd
 
 from tensorflow import keras
 
-MODEL_PATH = Path("data/ai_model.joblib")
+MODEL_PATH = Path("app/ai_models/ai_model.joblib")
 
 class AIAnomalyScorer:
     def __init__(self):

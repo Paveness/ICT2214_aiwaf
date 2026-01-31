@@ -130,7 +130,6 @@ async def handle_all(request: Request, path: str):
                 decision.reasons = list(decision.reasons or [])
                 decision.reasons.append(f"AI_ANOMALY:{anomaly_score:.3f}")
 
-            print(f"{raw_path_wire}\nFlagged: {anomaly_flagged}\nScore: {anomaly_score}\n")
         except Exception:
             anomaly_score = None
             anomaly_flagged = False
