@@ -89,15 +89,48 @@ app.post('/api/login', (req, res) => {
   });
 });
 
-// 4. GET LOGS (With Pagination & Search)
+// 4. GET LOGS (With Search, Pagination & Advanced Time Filtering)
 app.get('/api/logs', (req, res) => {
-  const { search, attack_type, limit = 20, page = 1 } = req.query; // Default limit 20
-  
+  const { 
+    search, attack_type, limit = 20, page = 1, 
+    time_mode = 'preset', // 'preset', 'before', 'after', 'between'
+    time_preset,          // '5m', '24h', etc.
+    start_date,           // 'YYYY-MM-DD HH:MM:SS'
+    end_date              // 'YYYY-MM-DD HH:MM:SS'
+  } = req.query;
+
   const offset = (page - 1) * limit;
   const params = [];
   let whereClause = "WHERE 1=1";
 
-  // Build Filter Logic
+  // --- TIME FILTER LOGIC ---
+  if (time_mode === 'preset' && time_preset && time_preset !== 'all') {
+    let interval = "24 HOUR";
+    switch (time_preset) {
+      case '5m': interval = "5 MINUTE"; break;
+      case '30m': interval = "30 MINUTE"; break;
+      case '1h': interval = "1 HOUR"; break;
+      case '24h': interval = "24 HOUR"; break;
+      case '7d': interval = "7 DAY"; break;
+      case '30d': interval = "30 DAY"; break;
+      case '1y': interval = "1 YEAR"; break;
+    }
+    whereClause += ` AND timestamp >= DATE_SUB(NOW(), INTERVAL ${interval})`;
+  } 
+  else if (time_mode === 'before' && end_date) {
+    whereClause += " AND timestamp <= ?";
+    params.push(end_date);
+  }
+  else if (time_mode === 'after' && start_date) {
+    whereClause += " AND timestamp >= ?";
+    params.push(start_date);
+  }
+  else if (time_mode === 'between' && start_date && end_date) {
+    whereClause += " AND timestamp BETWEEN ? AND ?";
+    params.push(start_date, end_date);
+  }
+
+  // --- OTHER FILTERS ---
   if (search) {
     whereClause += " AND (source_ip LIKE ? OR request_path LIKE ?)";
     params.push(`%${search}%`, `%${search}%`);
@@ -108,7 +141,7 @@ app.get('/api/logs', (req, res) => {
     params.push(attack_type);
   }
 
-  // Query 1: Get the Total Count (for pagination)
+  // Query 1: Get Total Count
   const countSql = `SELECT COUNT(*) as total FROM event_logs ${whereClause}`;
   
   db.query(countSql, params, (err, countResult) => {
@@ -117,15 +150,12 @@ app.get('/api/logs', (req, res) => {
     const totalLogs = countResult[0].total;
     const totalPages = Math.ceil(totalLogs / limit);
 
-    // Query 2: Get the Actual Data (slicing it)
+    // Query 2: Get Data
     const dataSql = `SELECT * FROM event_logs ${whereClause} ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
-    // Add limit and offset to params (must be integers)
     const dataParams = [...params, parseInt(limit), parseInt(offset)];
 
     db.query(dataSql, dataParams, (err, results) => {
       if (err) return res.status(500).json({ error: "Database error" });
-      
-      // Send both data and pagination info
       res.json({
         logs: results,
         pagination: {
