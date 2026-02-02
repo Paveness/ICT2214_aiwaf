@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
@@ -13,46 +12,43 @@ import HelpPage from "./pages/HelpPage";
 import SettingsPage from "./pages/SettingsPage";
 
 function App() {
-  // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // 1. NEW: Add a loading state to prevent premature redirects
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Optional: Check if user was already logged in (persists on refresh)
   useEffect(() => {
+    // Check local storage immediately when app mounts
     const loggedInUser = localStorage.getItem("user");
     if (loggedInUser) {
       setIsAuthenticated(true);
     }
+    // 2. NEW: Mark loading as done
+    setIsLoading(false);
   }, []);
 
   const handleLogin = (userData) => {
     setIsAuthenticated(true);
-    localStorage.setItem("user", JSON.stringify(userData)); // Save login state
+    localStorage.setItem("user", JSON.stringify(userData));
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem("user");
-  };
+  // 3. NEW: Show nothing (or a spinner) while checking auth
+  if (isLoading) {
+    return <div className="h-screen bg-gray-900 flex items-center justify-center text-white">Loading...</div>;
+  }
 
   return (
     <Router>
       <Routes>
-        {/* PUBLIC ROUTE: Login Page */}
+        {/* PUBLIC ROUTE */}
         <Route 
           path="/login" 
-          element={
-            !isAuthenticated ? (
-              <LoginPage onLogin={handleLogin} />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          } 
+          element={!isAuthenticated ? <LoginPage onLogin={handleLogin} /> : <Navigate to="/" replace />} 
         />
 
         {/* PROTECTED ROUTES */}
         {isAuthenticated ? (
           <>
-            {/* We wrap each page individually with MainLayout */}
             <Route path="/" element={<MainLayout><Overview /></MainLayout>} />
             <Route path="/traffic" element={<MainLayout><TrafficAnalysis /></MainLayout>} />
             <Route path="/ddos" element={<MainLayout><DDoSDashboard /></MainLayout>} />
@@ -65,6 +61,7 @@ function App() {
           </>
         ) : (
           /* If NOT logged in, redirect everything to Login */
+          /* Use 'replace' to prevent browser history stack buildup */
           <Route path="*" element={<Navigate to="/login" replace />} />
         )}
       </Routes>

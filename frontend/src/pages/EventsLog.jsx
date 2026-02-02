@@ -5,6 +5,13 @@ import {
 
 const API_BASE_URL = "http://localhost:5000/api";
 
+// Helper to get local time string for MySQL (YYYY-MM-DD HH:MM:SS)
+const getLocalMySQLTime = () => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000; // Offset in milliseconds
+  return new Date(now.getTime() - offset).toISOString().slice(0, 19).replace('T', ' ');
+};
+
 const getActionColor = (action) => {
   switch (action.toUpperCase()) {
     case 'BLOCKED': return 'bg-red-100 text-red-700 border-red-200';
@@ -28,6 +35,9 @@ const EventsLog = () => {
   const [timePreset, setTimePreset] = useState("24h");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  
+  // NEW: Track when "Live Mode" started to hide old logs
+  const [liveStartTime, setLiveStartTime] = useState(null);
 
   const [selectedLog, setSelectedLog] = useState(null);
 
@@ -36,8 +46,26 @@ const EventsLog = () => {
   const [totalPages, setTotalPages] = useState(1);
   const ITEMS_PER_PAGE = 20;
 
-  // Ref to store the interval ID so we can clear it later
   const liveIntervalRef = useRef(null);
+
+  // 1. Handle Time Preset Change (The Logic Fix)
+  const handleTimePresetChange = (e) => {
+    const newValue = e.target.value;
+    setTimePreset(newValue);
+
+    if (newValue === 'live') {
+      // If switching TO Live Mode:
+      // 1. Capture the current local time as the "Zero Hour"
+      const now = getLocalMySQLTime();
+      setLiveStartTime(now);
+      
+      // 2. Clear the table visually so it looks like a fresh stream
+      setLogs([]); 
+    } else {
+      // If switching AWAY from Live Mode, reset the start time
+      setLiveStartTime(null);
+    }
+  };
 
   const fetchFilters = async () => {
     try {
@@ -48,7 +76,6 @@ const EventsLog = () => {
   };
 
   const fetchLogs = async (isBackgroundRefresh = false) => {
-    // Only show loading spinner if it's NOT a background refresh (Live Mode)
     if (!isBackgroundRefresh) setLoading(true);
     
     try {
@@ -57,13 +84,24 @@ const EventsLog = () => {
         attack_type: filterType,
         limit: ITEMS_PER_PAGE,
         page: currentPage,
-        time_mode: timeMode === 'preset' && timePreset === 'live' ? 'preset' : timeMode, // Treat 'live' as standard preset for backend
+        time_mode: timeMode,
       };
 
-      // Handle "Live" Logic: If Live, usually we just want recent data, e.g., last 24h
+      // --- MODIFIED LOGIC START ---
       if (timeMode === 'preset') {
-        queryParams.time_preset = timePreset === 'live' ? '24h' : timePreset;
+        if (timePreset === 'live') {
+          // If in Live Mode, DO NOT use 'preset'. 
+          // Instead, switch to 'after' mode using our captured start time.
+          if (!liveStartTime) return; // Wait for state to settle
+          queryParams.time_mode = 'after';
+          queryParams.start_date = liveStartTime;
+        } else {
+          // Normal preset (24h, 1h, etc.)
+          queryParams.time_preset = timePreset;
+        }
       }
+      // --- MODIFIED LOGIC END ---
+
       if (timeMode === 'after' || timeMode === 'between') queryParams.start_date = startDate;
       if (timeMode === 'before' || timeMode === 'between') queryParams.end_date = endDate;
 
@@ -71,6 +109,7 @@ const EventsLog = () => {
       const res = await fetch(`${API_BASE_URL}/logs?${query}`);
       const data = await res.json();
       
+      // Safety check: ensure we didn't switch modes while fetching
       setLogs(data.logs);
       setTotalPages(data.pagination.total_pages);
     } catch (err) {
@@ -82,42 +121,40 @@ const EventsLog = () => {
 
   useEffect(() => { fetchFilters(); }, []);
 
-  // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [searchTerm, filterType, timeMode, timePreset, startDate, endDate]);
 
-  // --- LIVE MONITORING LOGIC ---
+  // LIVE MONITORING LOOP
   useEffect(() => {
-    // 1. Initial Fetch
-    fetchLogs();
+    // Immediate fetch when filters change
+    // (We wrap in timeout to debounce slightly and allow state updates)
+    const timer = setTimeout(() => {
+      fetchLogs();
+    }, 500);
 
-    // 2. Clear any existing interval
     if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
 
-    // 3. If "Live" is selected, start polling every 2 seconds
-    if (timeMode === 'preset' && timePreset === 'live') {
+    // Only start polling if we are in Live Mode AND have a start time
+    if (timeMode === 'preset' && timePreset === 'live' && liveStartTime) {
       liveIntervalRef.current = setInterval(() => {
-        fetchLogs(true); // true = don't show loading spinner
+        fetchLogs(true);
       }, 2000);
     }
 
-    // 4. Cleanup on unmount or change
     return () => {
+      clearTimeout(timer);
       if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
     };
-  }, [searchTerm, filterType, timeMode, timePreset, startDate, endDate, currentPage]);
+  }, [searchTerm, filterType, timeMode, timePreset, startDate, endDate, currentPage, liveStartTime]); // Added liveStartTime
 
   return (
     <div className="space-y-6 relative pb-10">
       
-      {/* HEADER & FILTERS */}
+      {/* HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-        
-        {/* Title */}
         <div className="flex items-center gap-2 min-w-fit">
           <ShieldAlert className="text-blue-600" /> 
           <h1 className="text-xl font-bold text-gray-800">Security Event Stream</h1>
           
-          {/* LIVE INDICATOR */}
           {timePreset === 'live' && timeMode === 'preset' && (
             <span className="flex items-center gap-1.5 px-2 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full animate-pulse ml-2">
               <span className="w-2 h-2 bg-red-600 rounded-full"></span>
@@ -126,7 +163,6 @@ const EventsLog = () => {
           )}
         </div>
 
-        {/* Filter Controls Container */}
         <div className="flex flex-wrap gap-3 w-full xl:justify-end items-center">
           
           <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1">
@@ -142,7 +178,6 @@ const EventsLog = () => {
             </select>
           </div>
 
-          {/* Time Presets Dropdown */}
           {timeMode === 'preset' && (
             <div className="relative">
               {timePreset === 'live' ? (
@@ -153,7 +188,7 @@ const EventsLog = () => {
               
               <select 
                 value={timePreset}
-                onChange={(e) => setTimePreset(e.target.value)}
+                onChange={handleTimePresetChange} // USE THE NEW HANDLER
                 className={`pl-9 pr-8 py-2 rounded-lg border text-sm focus:outline-none cursor-pointer font-bold ${
                   timePreset === 'live' 
                     ? 'border-red-200 bg-red-50 text-red-700' 
@@ -179,8 +214,7 @@ const EventsLog = () => {
                 type="datetime-local" 
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm w-48"
-                step="1"
+                className="pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm w-48" step="1"
               />
             </div>
           )}
@@ -194,8 +228,7 @@ const EventsLog = () => {
                 type="datetime-local" 
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm w-48"
-                step="1"
+                className="pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm w-48" step="1"
               />
             </div>
           )}
@@ -215,7 +248,7 @@ const EventsLog = () => {
         </div>
       </div>
 
-      {/* TABLE SECTION (Unchanged) */}
+      {/* TABLE SECTION */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -233,7 +266,9 @@ const EventsLog = () => {
               {loading ? (
                 <tr><td colSpan="6" className="p-8 text-center text-gray-500">Loading events...</td></tr>
               ) : logs.length === 0 ? (
-                <tr><td colSpan="6" className="p-8 text-center text-gray-500">No logs found.</td></tr>
+                <tr><td colSpan="6" className="p-8 text-center text-gray-500">
+                  {timePreset === 'live' ? "Waiting for new real-time events..." : "No logs found."}
+                </td></tr>
               ) : logs.map((log) => (
                 <tr key={log.id} className="hover:bg-blue-50/50 transition-colors animate-fade-in">
                   <td className="px-6 py-3 whitespace-nowrap text-gray-600 font-mono text-xs">
@@ -297,7 +332,7 @@ const EventsLog = () => {
         </div>
       </div>
 
-      {/* INSPECTOR MODAL */}
+      {/* INSPECTOR MODAL (Same as before) */}
       {selectedLog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
           <div className="bg-white w-full max-w-md h-full shadow-2xl p-6 flex flex-col animate-slide-in-right">
