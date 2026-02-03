@@ -1,13 +1,13 @@
 import time
 from datetime import datetime
-from db_config import get_db_connection
+from app.db.db_conf import get_conn
 
 def start_monitoring():
     print("🛡️  NEURO-WAF REAL-TIME MONITOR STARTED")
     print("---------------------------------------")
     print("Waiting for security events...")
 
-    conn = get_db_connection()
+    conn = get_conn()
     if not conn:
         return
 
