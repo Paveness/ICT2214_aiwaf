@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, RefreshCw, Eye, X, Server, ChevronLeft, ChevronRight, ShieldAlert, Clock, Calendar, Zap 
+import {
+  Search, RefreshCw, Eye, X, Server, ChevronLeft, ChevronRight, ShieldAlert, Clock, Calendar, Zap
 } from 'lucide-react';
 
 const API_BASE_URL = "http://localhost:5000/api";
@@ -24,18 +24,18 @@ const getActionColor = (action) => {
 const EventsLog = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("All");
   const [attackTypes, setAttackTypes] = useState([]);
-  
+
   // TIME FILTER STATE
-  const [timeMode, setTimeMode] = useState("preset"); 
+  const [timeMode, setTimeMode] = useState("preset");
   const [timePreset, setTimePreset] = useState("24h");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  
+
   // NEW: Track when "Live Mode" started to hide old logs
   const [liveStartTime, setLiveStartTime] = useState(null);
 
@@ -58,9 +58,9 @@ const EventsLog = () => {
       // 1. Capture the current local time as the "Zero Hour"
       const now = getLocalMySQLTime();
       setLiveStartTime(now);
-      
+
       // 2. Clear the table visually so it looks like a fresh stream
-      setLogs([]); 
+      setLogs([]);
     } else {
       // If switching AWAY from Live Mode, reset the start time
       setLiveStartTime(null);
@@ -77,7 +77,7 @@ const EventsLog = () => {
 
   const fetchLogs = async (isBackgroundRefresh = false) => {
     if (!isBackgroundRefresh) setLoading(true);
-    
+
     try {
       const queryParams = {
         search: searchTerm,
@@ -90,13 +90,10 @@ const EventsLog = () => {
       // --- MODIFIED LOGIC START ---
       if (timeMode === 'preset') {
         if (timePreset === 'live') {
-          // If in Live Mode, DO NOT use 'preset'. 
-          // Instead, switch to 'after' mode using our captured start time.
-          if (!liveStartTime) return; // Wait for state to settle
+          if (!liveStartTime) return;
           queryParams.time_mode = 'after';
           queryParams.start_date = liveStartTime;
         } else {
-          // Normal preset (24h, 1h, etc.)
           queryParams.time_preset = timePreset;
         }
       }
@@ -107,13 +104,21 @@ const EventsLog = () => {
 
       const query = new URLSearchParams(queryParams).toString();
       const res = await fetch(`${API_BASE_URL}/logs?${query}`);
+
+      // 1. Check if the response is OK (200)
+      if (!res.ok) {
+        throw new Error(`Server Error: ${res.status}`);
+      }
+
       const data = await res.json();
-      
-      // Safety check: ensure we didn't switch modes while fetching
-      setLogs(data.logs);
-      setTotalPages(data.pagination.total_pages);
+
+      // 2. Add Safety Fallbacks (|| []) to prevent undefined crashes
+      setLogs(data.logs || []);
+      setTotalPages(data.pagination?.total_pages || 1);
+
     } catch (err) {
       console.error("Failed to load logs:", err);
+      setLogs([]); // Ensure logs is always an array, even on error
     } finally {
       if (!isBackgroundRefresh) setLoading(false);
     }
@@ -148,13 +153,13 @@ const EventsLog = () => {
 
   return (
     <div className="space-y-6 relative pb-10">
-      
+
       {/* HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
         <div className="flex items-center gap-2 min-w-fit">
-          <ShieldAlert className="text-blue-600" /> 
+          <ShieldAlert className="text-blue-600" />
           <h1 className="text-xl font-bold text-gray-800">Security Event Stream</h1>
-          
+
           {timePreset === 'live' && timeMode === 'preset' && (
             <span className="flex items-center gap-1.5 px-2 py-1 bg-red-100 text-red-600 text-xs font-bold rounded-full animate-pulse ml-2">
               <span className="w-2 h-2 bg-red-600 rounded-full"></span>
@@ -164,10 +169,10 @@ const EventsLog = () => {
         </div>
 
         <div className="flex flex-wrap gap-3 w-full xl:justify-end items-center">
-          
+
           <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1">
-            <select 
-              value={timeMode} 
+            <select
+              value={timeMode}
               onChange={(e) => setTimeMode(e.target.value)}
               className="bg-transparent text-sm font-medium text-gray-700 focus:outline-none px-2 py-1 cursor-pointer"
             >
@@ -181,19 +186,18 @@ const EventsLog = () => {
           {timeMode === 'preset' && (
             <div className="relative">
               {timePreset === 'live' ? (
-                 <Zap className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 fill-red-500" size={16} />
+                <Zap className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 fill-red-500" size={16} />
               ) : (
-                 <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
               )}
-              
-              <select 
+
+              <select
                 value={timePreset}
                 onChange={handleTimePresetChange} // USE THE NEW HANDLER
-                className={`pl-9 pr-8 py-2 rounded-lg border text-sm focus:outline-none cursor-pointer font-bold ${
-                  timePreset === 'live' 
-                    ? 'border-red-200 bg-red-50 text-red-700' 
+                className={`pl-9 pr-8 py-2 rounded-lg border text-sm focus:outline-none cursor-pointer font-bold ${timePreset === 'live'
+                    ? 'border-red-200 bg-red-50 text-red-700'
                     : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                  }`}
               >
                 <option value="live">⚡️ Live Real-Time</option>
                 <option disabled>──────────</option>
@@ -210,8 +214,8 @@ const EventsLog = () => {
           {(timeMode === 'after' || timeMode === 'between') && (
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-              <input 
-                type="datetime-local" 
+              <input
+                type="datetime-local"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm w-48" step="1"
@@ -224,8 +228,8 @@ const EventsLog = () => {
           {(timeMode === 'before' || timeMode === 'between') && (
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-              <input 
-                type="datetime-local" 
+              <input
+                type="datetime-local"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm w-48" step="1"
@@ -233,7 +237,7 @@ const EventsLog = () => {
             </div>
           )}
 
-          <select 
+          <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
             className="px-4 py-2 rounded-lg border border-gray-200 text-sm bg-gray-50 text-gray-700 focus:outline-none"
@@ -314,14 +318,14 @@ const EventsLog = () => {
             Page <span className="font-bold">{currentPage}</span> of <span className="font-bold">{totalPages || 1}</span>
           </div>
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
               className={`p-2 rounded-lg border ${currentPage === 1 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-600 border-gray-300 hover:bg-white'}`}
             >
               <ChevronLeft size={16} />
             </button>
-            <button 
+            <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages || totalPages === 0}
               className={`p-2 rounded-lg border ${currentPage === totalPages || totalPages === 0 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-600 border-gray-300 hover:bg-white'}`}
@@ -336,18 +340,18 @@ const EventsLog = () => {
       {selectedLog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
           <div className="bg-white w-full max-w-md h-full shadow-2xl p-6 flex flex-col animate-slide-in-right">
-             <div className="flex justify-between items-center mb-6 pb-4 border-b">
-               <h2 className="text-xl font-bold text-gray-800">Event Details #{selectedLog.id}</h2>
-               <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
-             </div>
-             <div className="space-y-6 flex-1 overflow-y-auto">
-                <div className="p-4 bg-gray-50 rounded font-mono text-sm space-y-2">
-                   <p><span className="font-bold text-gray-500">Time:</span> {new Date(selectedLog.timestamp).toLocaleString()}</p>
-                   <p><span className="font-bold text-gray-500">Source:</span> {selectedLog.source_ip} ({selectedLog.geo_location})</p>
-                   <p><span className="font-bold text-gray-500">Dest:</span> {selectedLog.destination_ip}</p>
-                   <p><span className="font-bold text-gray-500">Path:</span> <br/>{selectedLog.request_path}</p>
-                </div>
-             </div>
+            <div className="flex justify-between items-center mb-6 pb-4 border-b">
+              <h2 className="text-xl font-bold text-gray-800">Event Details #{selectedLog.id}</h2>
+              <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
+            </div>
+            <div className="space-y-6 flex-1 overflow-y-auto">
+              <div className="p-4 bg-gray-50 rounded font-mono text-sm space-y-2">
+                <p><span className="font-bold text-gray-500">Time:</span> {new Date(selectedLog.timestamp).toLocaleString()}</p>
+                <p><span className="font-bold text-gray-500">Source:</span> {selectedLog.source_ip} ({selectedLog.geo_location})</p>
+                <p><span className="font-bold text-gray-500">Dest:</span> {selectedLog.destination_ip}</p>
+                <p><span className="font-bold text-gray-500">Path:</span> <br />{selectedLog.request_path}</p>
+              </div>
+            </div>
           </div>
         </div>
       )}

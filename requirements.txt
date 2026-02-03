@@ -1,16 +1,29 @@
-# use python@3.12 for this app
+# --- Core Framework & Server ---
 fastapi
 uvicorn
 httpx
+requests
+python-dotenv       # Required for loading .env (db_config.py)
+
+# --- Data Validation & Settings ---
 pydantic
-pydantic-settings
+pydantic-settings   # Fixed the "ModuleNotFoundError: pydantic_settings"
+
+# --- Database & Authentication ---
+pymysql
+cryptography
+passlib[bcrypt]     # Required for password hashing in routes.py
+
+# --- AI & Data Science ---
+tensorflow          # Fixed the "ModuleNotFoundError: tensorflow"
 scikit-learn
 pandas
+numpy               # Required dependency for AI models
 joblib
+
+# --- Web Scraping & Utilities ---
 scrapy
-tensorflow
-pymysql
-bcrypt
+beautifulsoup4
 
 # Frontend dependencies
 react

@@ -1,6 +1,6 @@
 import time
 from datetime import datetime
-from app.db.db_conf import get_conn
+from app.db.db_config import get_conn
 
 def start_monitoring():
     print("🛡️  NEURO-WAF REAL-TIME MONITOR STARTED")
