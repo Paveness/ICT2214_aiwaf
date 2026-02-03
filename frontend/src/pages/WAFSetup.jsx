@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Globe, 
@@ -9,46 +9,99 @@ import {
   ChevronRight, 
   ChevronLeft,
   Server,
-  Lock
+  Lock,
+  AlertCircle
 } from 'lucide-react';
 
-const WAFSetup = () => {
+// Accept onComplete prop from App.jsx
+const WAFSetup = ({ onComplete }) => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [progress, setProgress] = useState(0);
+  const [error, setError] = useState("");
 
   const [formData, setFormData] = useState({
-    targetIp: '',
-    wafMode: 'shadow',
+    targetIp: 'http://localhost:3000', // Default example
+    wafMode: 'protect',
     wafPort: '8080',
-    username: '',
-    password: '',
+    username: 'Admin',
+    password: 'password123',
     loginUsername: '',
     loginPassword: '',
-    loginEndpoint: '',
-    escapeEndpoint: ''
+    loginEndpoint: '/login',
+    escapeEndpoint: '/logout'
   });
 
-  // Fixed Step 4 Logic: Move to Step 5 on completion
+  // Track if deployment has started to prevent double-firing
+  const deploymentStarted = useRef(false);
+
+  // STEP 4 LOGIC: REAL BACKEND DEPLOYMENT
   useEffect(() => {
-    if (step === 4) {
-      setProgress(0); // Reset progress when starting deployment
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setTimeout(() => setStep(5), 800); // FIXED: Move to Step 5
-            return 100;
+    if (step === 4 && !deploymentStarted.current) {
+      deploymentStarted.current = true;
+      setProgress(10); // Start progress
+      
+      const deployToBackend = async () => {
+        try {
+          // 1. Prepare Payload matching Python Backend (SetupModel)
+          const payload = {
+            target_host: formData.targetIp,
+            proxy_port: parseInt(formData.wafPort),
+            login_endpoint: formData.loginEndpoint,
+            excluded_endpoints: formData.escapeEndpoint,
+            username: formData.username,
+            password: formData.password
+          };
+
+          // 2. Simulate network delay + Real Fetch
+          // We run the progress bar timer and the fetch in parallel
+          const progressInterval = setInterval(() => {
+            setProgress((prev) => {
+              if (prev >= 90) return 90; // Hold at 90% until fetch finishes
+              return prev + 2; 
+            });
+          }, 50);
+
+          const res = await fetch("http://localhost:5000/api/setup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          clearInterval(progressInterval);
+
+          if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.detail || "Deployment failed");
           }
-          return prev + 2; // Slightly faster for better UX
-        });
-      }, 50);
-      return () => clearInterval(interval);
+
+          // 3. Success! Finish the bar and move to Step 5
+          setProgress(100);
+          setTimeout(() => setStep(5), 500);
+
+        } catch (err) {
+          console.error(err);
+          setError(err.message);
+          setStep(3); // Go back to previous step on error
+          deploymentStarted.current = false; // Reset lock
+        }
+      };
+
+      deployToBackend();
     }
-  }, [step]);
+  }, [step, formData]);
 
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
+
+  // Final Success Action
+  const handleFinish = () => {
+    if (onComplete) {
+      onComplete(); // Tells App.jsx to switch state
+      // Note: We don't need navigate('/login') here because App.jsx 
+      // will redirect automatically once isWafSetup becomes true.
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -74,16 +127,25 @@ const WAFSetup = () => {
         </div>
 
         <div className="p-8">
+          {/* ERROR ALERT */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl flex items-center gap-3 text-sm animate-in slide-in-from-top-2">
+              <AlertCircle size={20} />
+              {error}
+              <button onClick={() => setError("")} className="ml-auto text-gray-400 hover:text-red-600">×</button>
+            </div>
+          )}
+
           {/* STEP 1: TARGET IP */}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                  <Globe size={16} /> Web Server IP Address
+                  <Globe size={16} /> Web Server IP / URL
                 </label>
                 <input 
                   type="text" 
-                  placeholder="e.g. 192.168.1.100"
+                  placeholder="e.g. http://localhost:3000"
                   className="w-full p-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   value={formData.targetIp}
                   onChange={(e) => setFormData({...formData, targetIp: e.target.value})}
@@ -132,7 +194,7 @@ const WAFSetup = () => {
 
               <div className="space-y-4 pt-4 border-t border-gray-100">
                 <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                  <Lock size={16} /> Admin Credentials
+                  <Lock size={16} /> Admin Credentials (Create New)
                 </label>
                 <input 
                   type="text" placeholder="Username"
@@ -167,15 +229,16 @@ const WAFSetup = () => {
                   <Rocket size={16} className="text-blue-500" /> Crawler Settings
                 </label>
                 
+                {/* Note: loginUsername/Password aren't currently used by backend payload but kept for UI */}
                 <div className="grid grid-cols-2 gap-3">
                   <input 
-                    type="text" placeholder="Login Username"
+                    type="text" placeholder="Login Username (Optional)"
                     className="w-full p-3 rounded-lg border border-gray-200 outline-none text-sm"
                     value={formData.loginUsername}
                     onChange={(e) => setFormData({...formData, loginUsername: e.target.value})}
                   />
                   <input 
-                    type="password" placeholder="Login Password"
+                    type="password" placeholder="Login Password (Optional)"
                     className="w-full p-3 rounded-lg border border-gray-200 outline-none text-sm"
                     value={formData.loginPassword}
                     onChange={(e) => setFormData({...formData, loginPassword: e.target.value})}
@@ -186,16 +249,16 @@ const WAFSetup = () => {
                   <div className="relative">
                     <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 text-xs font-mono">POST</span>
                     <input 
-                      type="text" placeholder="Login Endpoint (e.g. /api/login)"
+                      type="text" placeholder="Login Endpoint (e.g. /login)"
                       className="w-full p-3 pl-14 rounded-lg border border-gray-200 outline-none text-sm"
                       value={formData.loginEndpoint}
                       onChange={(e) => setFormData({...formData, loginEndpoint: e.target.value})}
                     />
                   </div>
                   <div className="relative">
-                    <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 text-xs font-mono">GET</span>
+                    <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 text-xs font-mono">CSV</span>
                     <input 
-                      type="text" placeholder="Escape Endpoint (e.g. /logout)"
+                      type="text" placeholder="Excluded Endpoints (e.g. /logout, /reset)"
                       className="w-full p-3 pl-14 rounded-lg border border-gray-200 outline-none text-sm"
                       value={formData.escapeEndpoint}
                       onChange={(e) => setFormData({...formData, escapeEndpoint: e.target.value})}
@@ -209,22 +272,22 @@ const WAFSetup = () => {
                   <ChevronLeft size={20} />
                 </button>
                 <button onClick={handleNext} className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-500/20">
-                  Deploy <Rocket size={18} />
+                  Deploy Configuration <Rocket size={18} />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 4: DEPLOYING */}
+          {/* STEP 4: DEPLOYING (REAL BACKEND CALL) */}
           {step === 4 && (
             <div className="py-10 text-center space-y-6 animate-in zoom-in-95">
               <Loader2 size={48} className="text-blue-500 animate-spin mx-auto" />
               <div>
                 <h3 className="text-xl font-bold text-gray-800">Deploying Neuro-WAF</h3>
                 <p className="text-sm text-gray-500 mt-2">
-                  {progress < 40 ? 'Initializing proxy bridge...' : 
-                   progress < 70 ? 'Running automated crawler...' : 
-                   'Training AI Anomaly Engine...'}
+                  {progress < 40 ? 'Connecting to database...' : 
+                   progress < 70 ? 'Initializing WAF Instance...' : 
+                   'Finalizing security policies...'}
                 </p>
               </div>
               <div className="space-y-2">
@@ -245,10 +308,13 @@ const WAFSetup = () => {
               <div>
                 <h3 className="text-2xl font-bold text-gray-800">Activation Ready</h3>
                 <p className="text-sm text-gray-500 mt-2 px-6">
-                  Neuro-WAF is now listening on port {formData.wafPort}. The AI model has been initialized with the application baseline.
+                  Neuro-WAF is now configured for <strong>{formData.targetIp}</strong>. The admin account has been created.
                 </p>
               </div>
-              <button onClick={() => navigate('/login')} className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all">
+              <button 
+                onClick={handleFinish} 
+                className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all"
+              >
                 Proceed to Login
               </button>
             </div>
