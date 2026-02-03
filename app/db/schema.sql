@@ -23,7 +23,7 @@ VALUES ('Admin', '$2b$10$w/X5sQ/..somerandomhashstring...', 'admin');
 
 CREATE DATABASE IF NOT EXISTS NeuroWAF_db;
 USE NeuroWAF_db;
-CREATE TABLE logs (
+CREATE TABLE event_logs (
   request_id CHAR(36) NOT NULL,
   log JSON NOT NULL,
   PRIMARY KEY (request_id)
