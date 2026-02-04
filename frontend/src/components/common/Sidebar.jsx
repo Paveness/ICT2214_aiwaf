@@ -17,7 +17,7 @@ const Sidebar = () => {
 
   // Define navigation items
   const navItems = [
-    { name: "Overview", path: "/", icon: LayoutDashboard },
+    { name: "Overview", path: "/dashboard", icon: LayoutDashboard },
     { name: "Traffic Analysis", path: "/traffic", icon: Activity },
     { name: "DDoS Mitigation", path: "/ddos", icon: ShieldAlert },
     { name: "Events Log", path: "/events", icon: FileText },

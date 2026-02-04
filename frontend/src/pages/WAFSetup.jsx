@@ -21,13 +21,13 @@ const WAFSetup = ({ onComplete }) => {
   const [error, setError] = useState("");
 
   const [formData, setFormData] = useState({
-    targetIp: 'http://localhost:3000', // Default example
+    targetIp: 'http://127.0.0.1:5000', // Default example
     wafMode: 'protect',
     wafPort: '8080',
-    username: 'Admin',
-    password: 'password123',
-    loginUsername: '',
-    loginPassword: '',
+    username: 'admin',
+    password: 'admin',
+    loginUsername: 'test',
+    loginPassword: 'test',
     loginEndpoint: '/login',
     escapeEndpoint: '/logout'
   });
@@ -37,59 +37,52 @@ const WAFSetup = ({ onComplete }) => {
 
   // STEP 4 LOGIC: REAL BACKEND DEPLOYMENT
   useEffect(() => {
-    if (step === 4 && !deploymentStarted.current) {
-      deploymentStarted.current = true;
-      setProgress(10); // Start progress
-      
-      const deployToBackend = async () => {
+    if (step !== 4) return;
+    if (deploymentStarted.current) return;
+
+    deploymentStarted.current = true;
+    setError("");
+
+    const deployToBackend = async () => {
+      try {
+        const payload = {
+          target_host: formData.targetIp,
+          proxy_port: parseInt(formData.wafPort, 10),
+          login_endpoint: formData.loginEndpoint,
+          excluded_endpoints: formData.escapeEndpoint,
+          username: formData.username,
+          password: formData.password,
+        };
+
+        const res = await fetch("/api/setupwaf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+
+        let data = {};
         try {
-          // 1. Prepare Payload matching Python Backend (SetupModel)
-          const payload = {
-            target_host: formData.targetIp,
-            proxy_port: parseInt(formData.wafPort),
-            login_endpoint: formData.loginEndpoint,
-            excluded_endpoints: formData.escapeEndpoint,
-            username: formData.username,
-            password: formData.password
-          };
+          data = await res.json();
+        } catch {}
 
-          // 2. Simulate network delay + Real Fetch
-          // We run the progress bar timer and the fetch in parallel
-          const progressInterval = setInterval(() => {
-            setProgress((prev) => {
-              if (prev >= 90) return 90; // Hold at 90% until fetch finishes
-              return prev + 2; 
-            });
-          }, 50);
-
-          const res = await fetch("http://localhost:5000/api/setup", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-
-          clearInterval(progressInterval);
-
-          if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.detail || "Deployment failed");
-          }
-
-          // 3. Success! Finish the bar and move to Step 5
-          setProgress(100);
-          setTimeout(() => setStep(5), 500);
-
-        } catch (err) {
-          console.error(err);
-          setError(err.message);
-          setStep(3); // Go back to previous step on error
-          deploymentStarted.current = false; // Reset lock
+        if (!res.ok) {
+          throw new Error(data.detail || "Deployment failed");
         }
-      };
 
-      deployToBackend();
-    }
-  }, [step, formData]);
+        // ✅ SUCCESS → go straight to dashboard
+        navigate("/login", { replace: true });
+
+      } catch (err) {
+        console.error("setupwaf error:", err);
+        setError(err.message || "Deployment failed");
+        deploymentStarted.current = false;
+        setStep(3); // go back so user can fix inputs
+      }
+    };
+
+    deployToBackend();
+  }, [step]);
 
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);

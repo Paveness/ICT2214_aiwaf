@@ -1,36 +1,52 @@
-// Top search bar and filters
 // src/components/common/Header.jsx
-import React from 'react';
-import { useLocation } from 'react-router-dom';
-import { Search, Bell } from 'lucide-react';
+import React from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Search, Bell, LogOut } from "lucide-react";
 
 export default function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Helper to format pathname into a title (e.g., "/traffic" -> "Traffic Analysis")
   const getTitle = () => {
-    switch(location.pathname) {
-      case '/': return 'Dashboard Overview';
-      case '/traffic': return 'Traffic Analysis';
-      case '/ddos': return 'DDoS Mitigation';
-      case '/events': return 'Security Events';
-      default: return 'Neuro-WAF';
+    switch (location.pathname) {
+      case "/dashboard":
+        return "Dashboard Overview";
+      case "/traffic":
+        return "Traffic Analysis";
+      case "/ddos":
+        return "DDoS Mitigation";
+      case "/events":
+        return "Security Events";
+      default:
+        return "Neuro-WAF";
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (e) {
+      // even if network fails, still force user out on UI side
+      console.warn("logout failed:", e);
+    } finally {
+      navigate("/login", { replace: true });
     }
   };
 
   return (
     <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-10">
-      <h1 className="text-xl font-bold text-gray-800 tracking-tight">
-        {getTitle()}
-      </h1>
+      <h1 className="text-xl font-bold text-gray-800 tracking-tight">{getTitle()}</h1>
 
       <div className="flex items-center gap-6">
         {/* Search Bar */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input 
-            type="text" 
-            placeholder="Search logs, IPs..." 
+          <input
+            type="text"
+            placeholder="Search logs, IPs..."
             className="pl-10 pr-4 py-1.5 bg-gray-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 rounded-md text-sm transition-all outline-none w-64"
           />
         </div>
@@ -39,6 +55,15 @@ export default function Header() {
         <button className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
           <Bell size={20} />
           <span className="absolute top-1.5 right-2 h-2 w-2 bg-red-500 rounded-full border border-white"></span>
+        </button>
+
+        {/* Logout */}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-full transition font-semibold"
+        >
+          <LogOut size={18} />
+          Logout
         </button>
 
         {/* User Profile */}

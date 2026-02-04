@@ -1,54 +1,69 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORT THIS
-from app.controllers.proxy_controller import router as proxy_router
-from app.services.proxy_service import ProxyService
-from app.services.logging_service import LoggingService
-from app.waf.ai_model import AIAnomalyScorer
-from app.api.routes import router  # This is the new dashboard logic
+from fastapi import APIRouter, Response, Request
+from pydantic import BaseModel
 
-app = FastAPI(title="AIWAF Proxy (V1)")
-
-# --- 1. ENABLE CORS (Crucial for React Frontend) ---
-# This allows http://localhost:5173 to send requests to this server
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Your Frontend URL
-    allow_credentials=True,
-    allow_methods=["*"],  # Allow GET, POST, etc.
-    allow_headers=["*"],
+from app.controllers.auth_controller import (
+    login_controller,
+    auth_check_controller,
+    logout_controller,
 )
+from app.controllers.waf_controller import (
+    setup_waf_controller
+)
+from app.controllers.logs_controller import LogsController
 
-# --- 2. REGISTER ROUTES ---
-# Dashboard API (Login, Logs, Filters)
-app.include_router(router, prefix="/api") 
-# Proxy Traffic Handler
-app.include_router(proxy_router)
+router = APIRouter()
 
-# --- 3. SERVICE INITIALIZATION ---
-proxy_service = ProxyService()
-logging_service = LoggingService()
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
-@app.on_event("startup")
-async def on_startup():
-    print("🚀 Starting AIWAF Proxy & Dashboard API...")
-    
-    # Load AI Model
-    anomaly_ai = AIAnomalyScorer()
-    anomaly_ai.load()
-    app.state.anomaly_ai_scorer = anomaly_ai
-    
-    # Start Proxy Service
-    await proxy_service.startup()
+class SetupWAFRequest(BaseModel):
+    target_host: str
+    proxy_port: int
+    login_endpoint: str | None = None
+    excluded_endpoints: str | None = None
+    username: str
+    password: str
 
-@app.on_event("shutdown")
-async def on_shutdown():
-    print("🛑 Shutting down...")
-    await proxy_service.shutdown()
+@router.post("/login")
+def login(payload: LoginRequest, request: Request, response: Response):
+    return login_controller(payload.username, payload.password, response, request)
 
-app.state.proxy_service = proxy_service
-app.state.logging_service = logging_service
+@router.get("/auth/check")
+def auth_check(request: Request):
+    return auth_check_controller(request)
 
-if __name__ == "__main__":
-    import uvicorn
-    # Run on port 5000 to match your old Node backend configuration
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+@router.post("/logout")
+def logout(request: Request, response: Response):
+    return logout_controller(request, response)
+
+@router.post("/setupwaf")
+def setupwaf(payload: SetupWAFRequest):
+    print(payload)
+    return setup_waf_controller(payload)
+
+@router.get("/logs")
+def get_logs(
+    search: str = "",
+    attack_type: str = "All",
+    limit: int = 20,
+    page: int = 1,
+    time_mode: str = "preset",
+    time_preset: str = "24h",
+    start_date: str | None = None,
+    end_date: str | None = None,
+):
+    return LogsController.get_logs(
+        search=search,
+        attack_type=attack_type,
+        limit=limit,
+        page=page,
+        time_mode=time_mode,
+        time_preset=time_preset,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+@router.get("/filters")
+def filters():
+    return LogsController.get_attack_types()

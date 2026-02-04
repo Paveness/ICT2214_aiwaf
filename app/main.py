@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORT THIS
+from fastapi.middleware.cors import CORSMiddleware
 from app.controllers.proxy_controller import router as proxy_router
 from app.services.proxy_service import ProxyService
 from app.services.logging_service import LoggingService
@@ -8,23 +8,20 @@ from app.api.routes import router  # This is the new dashboard logic
 
 app = FastAPI(title="AIWAF Proxy (V1)")
 
-# --- 1. ENABLE CORS (Crucial for React Frontend) ---
-# This allows http://localhost:5173 to send requests to this server
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Your Frontend URL
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow GET, POST, etc.
-    allow_headers=["*"],
+    allow_methods=["*"],     # POST, GET, OPTIONS, etc
+    allow_headers=["*"],     # Content-Type, Authorization, etc
 )
 
-# --- 2. REGISTER ROUTES ---
-# Dashboard API (Login, Logs, Filters)
-app.include_router(router, prefix="/api") 
-# Proxy Traffic Handler
+app.include_router(router, prefix="/api")
 app.include_router(proxy_router)
 
-# --- 3. SERVICE INITIALIZATION ---
 proxy_service = ProxyService()
 logging_service = LoggingService()
 
@@ -39,16 +36,10 @@ async def on_startup():
     
     # Start Proxy Service
     await proxy_service.startup()
+    
 
-@app.on_event("shutdown")
 async def on_shutdown():
-    print("🛑 Shutting down...")
     await proxy_service.shutdown()
 
 app.state.proxy_service = proxy_service
 app.state.logging_service = logging_service
-
-if __name__ == "__main__":
-    import uvicorn
-    # Run on port 5000 to match your old Node backend configuration
-    uvicorn.run(app, host="0.0.0.0", port=5000)
