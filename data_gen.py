@@ -251,8 +251,13 @@ if __name__ == "__main__":
     output_file = Path(args.output)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
+<<<<<<< HEAD
     total = args.limit
     print(f"[*] Generating {total} training records (~{args.anomaly_rate:.0%} anomalies)...")
+=======
+    LIMIT = 20000 # Start small to test, increase acccordingly
+    print(f"[*] Generating {LIMIT} training records based on crawled data...")
+>>>>>>> 2de200530e863d0ab8d9cba24514a588ce3fe1cf
     
     with open(output_file, "w") as f:
         for i in range(total):
