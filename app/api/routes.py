@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Response, Request
 from pydantic import BaseModel
+from typing import Literal, Optional
 
 from app.controllers.auth_controller import (
     login_controller,
@@ -10,6 +11,7 @@ from app.controllers.waf_controller import (
     setup_waf_controller
 )
 from app.controllers.logs_controller import LogsController
+from app.controllers.policy_controller import PolicyController
 
 router = APIRouter()
 
@@ -24,6 +26,13 @@ class SetupWAFRequest(BaseModel):
     excluded_endpoints: str | None = None
     username: str
     password: str
+
+class PolicyRuleCreate(BaseModel):
+    list_type: Literal["whitelist", "blacklist"]
+    ip_address: str
+    reason: Optional[str] = None
+    created_by: Optional[str] = None
+    expires_at: Optional[str] = None
 
 @router.post("/login")
 def login(payload: LoginRequest, request: Request, response: Response):
@@ -67,3 +76,15 @@ def get_logs(
 @router.get("/filters")
 def filters():
     return LogsController.get_attack_types()
+
+@router.get("/policy/entries")
+def list_policy_entries(list_type: Optional[str] = None):
+    return PolicyController.list_rules(list_type)
+
+@router.post("/policy/entries")
+def create_policy_entry(payload: PolicyRuleCreate):
+    return PolicyController.create_rule(payload.model_dump())
+
+@router.delete("/policy/entries/{rule_id}")
+def delete_policy_entry(rule_id: int):
+    return PolicyController.delete_rule(rule_id)

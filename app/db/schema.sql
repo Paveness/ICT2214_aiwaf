@@ -8,6 +8,7 @@ USE neurowaf_db;
 DROP TABLE IF EXISTS sessions;
 DROP TABLE IF EXISTS crawler_settings;
 DROP TABLE IF EXISTS event_logs;
+DROP TABLE IF EXISTS ip_policy_rules;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS waf_instances;
 
@@ -56,6 +57,22 @@ CREATE TABLE crawler_settings (
 CREATE TABLE event_logs (
     log_id INT AUTO_INCREMENT PRIMARY KEY,
     raw_log JSON NOT NULL
+);
+
+-- ==========================================
+-- 5. IP POLICY RULES TABLE
+-- ==========================================
+CREATE TABLE ip_policy_rules (
+    rule_id INT AUTO_INCREMENT PRIMARY KEY,
+    list_type ENUM('whitelist', 'blacklist') NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    reason VARCHAR(255),
+    created_by VARCHAR(100),
+    expires_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_ip_policy_ip (ip_address),
+    INDEX idx_ip_policy_list (list_type)
 );
 
 -- ==========================================
