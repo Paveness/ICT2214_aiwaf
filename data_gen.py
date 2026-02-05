@@ -202,7 +202,7 @@ if __name__ == "__main__":
     output_file = Path("app/ai_models/data/ai_requests.jsonl")
     output_file.parent.mkdir(parents=True, exist_ok=True)
     
-    LIMIT = 20000 # Start small to test, then increase to 1,000,000
+    LIMIT = 20000 # Start small to test, increase acccordingly
     print(f"[*] Generating {LIMIT} training records based on crawled data...")
     
     with open(output_file, "w") as f:
